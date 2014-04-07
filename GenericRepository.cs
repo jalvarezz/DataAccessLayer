@@ -27,13 +27,22 @@ namespace DataAccess.Framework
 		public void Insert(TEntity entity)
 		{
 			_dbSet.Add(entity);
-
 		}
 		
 		public void Delete(object id)
 		{
 			_dbSet.Remove(GetByID(id));
 		}
+		
+		public void Delete(TEntity entityToDelete)
+        {
+            if (_context.Entry(entityToDelete).State == EntityState.Detached)
+            {
+                _dbSet.Attach(entityToDelete);
+            }
+
+            _dbSet.Remove(entityToDelete);
+        }
 
 		public void Update(TEntity entity)
 		{
@@ -82,6 +91,39 @@ namespace DataAccess.Framework
 
 			return sortedResults;
 		}
+		
+		/// <summary>
+		///     Retrieves the quantity of a filtered set of TEntities.
+		/// </summary>
+		/// <param name="filter">The filter.</param>
+		/// <returns>TEntity count.</returns>
+		public virtual int GetCount(Expression<Func<TEntity, bool>> filter = null)
+        {
+            return filter == null ? this._dbSet.Count() : this._dbSet.Where(filter).Count();
+        }
+		
+		/// <summary>
+		///		Method to Execute a Stored Procedure and project the result to a TResult type.
+		/// </summary>
+		/// <typeparam name="TResult">The type of the result.</typeparam>
+		/// <param name="transform">The transform.</param>
+		/// <param name="parameters">The Stored Procedure parameters.</param>
+		/// <returns>The <see cref="IEnumerable{TResult}"/> result set.</returns>
+		public virtual IEnumerable<TResult> ExecuteStoredProc<TResult>(Func<IEnumerable<TEntity>, IEnumerable<TResult>> transform, object[] parameters)
+        {
+            Type contextType = typeof(PPEntities);
+            string procedureName = typeof(TEntity).Name.Replace("_Result", "");
+
+			var procedureResult = contextType.GetMethod(procedureName).Invoke(_context, parameters) as IEnumerable<TEntity>;
+
+			if (procedureResult == null) return null;
+
+			var result = transform(procedureResult);
+
+			return result.ToList();
+
+            return null;
+        }
 
 		public void Dispose()
 		{
